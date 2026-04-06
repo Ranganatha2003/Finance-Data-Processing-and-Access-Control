@@ -6,14 +6,19 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+  private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
   @ExceptionHandler(ResourceNotFoundException.class)
   public ResponseEntity<ApiErrorResponse> handleNotFound(
@@ -98,12 +103,24 @@ public class GlobalExceptionHandler {
     return toResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
   }
 
+  @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+  public ResponseEntity<ApiErrorResponse> handleUnsupportedMediaType(
+      HttpMediaTypeNotSupportedException ex,
+      HttpServletRequest request
+  ) {
+    String message =
+        "Unsupported Content-Type for this endpoint. Send JSON in the body (Postman: Body → raw → JSON, or text/plain with JSON text).";
+    log.warn("Unsupported media type on {}: {}", request.getRequestURI(), ex.getContentType());
+    return toResponse(HttpStatus.UNSUPPORTED_MEDIA_TYPE, message, request.getRequestURI());
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiErrorResponse> handleGeneric(
       Exception ex,
       HttpServletRequest request
   ) {
-    // Avoid leaking stack traces. Keep message simple for assignment.
+    // Log the real cause in the server console (check the terminal running Spring Boot).
+    log.error("Unexpected error on {}: {}", request.getRequestURI(), ex.toString(), ex);
     return toResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error", request.getRequestURI());
   }
 

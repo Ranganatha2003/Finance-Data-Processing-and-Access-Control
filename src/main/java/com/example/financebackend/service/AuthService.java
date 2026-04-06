@@ -8,6 +8,7 @@ import com.example.financebackend.enums.Role;
 import com.example.financebackend.enums.UserStatus;
 import com.example.financebackend.exception.DuplicateEmailException;
 import com.example.financebackend.exception.InactiveUserException;
+import com.example.financebackend.exception.InvalidInputException;
 import com.example.financebackend.repository.UserRepository;
 import com.example.financebackend.security.JwtUtil;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -44,6 +45,9 @@ public class AuthService {
 
     userRepository.save(user);
 
+    if (user.getRole() == null) {
+      throw new InvalidInputException("User role is missing after registration");
+    }
     String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
     return new AuthResponse(token);
   }
@@ -61,6 +65,9 @@ public class AuthService {
       throw new BadCredentialsException("Invalid email or password");
     }
 
+    if (user.getRole() == null) {
+      throw new InvalidInputException("User role is missing; ask an admin to fix this account");
+    }
     String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
     return new AuthResponse(token);
   }

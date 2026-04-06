@@ -1,7 +1,6 @@
 package com.example.financebackend.service;
 
 import com.example.financebackend.dto.dashboard.*;
-import com.example.financebackend.dto.records.FinancialRecordResponse;
 import com.example.financebackend.entity.FinancialRecord;
 import com.example.financebackend.enums.RecordType;
 import com.example.financebackend.repository.FinancialRecordRepository;
@@ -11,6 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +49,7 @@ public class DashboardService {
     Map<String, BigDecimal> expenseByCategory = new HashMap<>();
 
     for (FinancialRecord record : records) {
-      String category = record.getCategory();
+      String category = normalizeCategory(record.getCategory());
 
       if (record.getType() == RecordType.INCOME) {
         incomeByCategory.put(category, incomeByCategory.getOrDefault(category, BigDecimal.ZERO).add(record.getAmount()));
@@ -59,14 +59,15 @@ public class DashboardService {
     }
 
     // Deterministic order for predictable output.
-    List<String> categories = incomeByCategory.keySet().stream()
+    List<String> categories = new ArrayList<>(incomeByCategory.keySet().stream()
         .sorted()
-        .toList();
+        .toList());
     for (String category : expenseByCategory.keySet()) {
       if (!incomeByCategory.containsKey(category)) {
         categories.add(category);
       }
     }
+    categories.sort(Comparator.naturalOrder());
 
     List<CategoryTotalsItemResponse> items = categories.stream()
         .map(category -> {
@@ -139,6 +140,13 @@ public class DashboardService {
         createdByUserId,
         record.getCreatedAt()
     );
+  }
+
+  private String normalizeCategory(String category) {
+    if (category == null || category.isBlank()) {
+      return "UNCATEGORIZED";
+    }
+    return category.trim();
   }
 }
 

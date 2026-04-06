@@ -24,6 +24,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     this.userDetailsService = userDetailsService;
   }
 
+  /**
+   * Do not run JWT parsing on register/login. Postman often sends an inherited
+   * {@code Authorization} header here; if that triggers
+   * {@code loadUserByUsername} and it fails, the exception happens in the filter chain
+   * (not in the controller), which surfaces as a generic 500 instead of normal JSON errors.
+   */
+  @Override
+  protected boolean shouldNotFilter(HttpServletRequest request) {
+    String uri = request.getRequestURI();
+    if (uri == null) {
+      return false;
+    }
+    String contextPath = request.getContextPath();
+    if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
+      uri = uri.substring(contextPath.length());
+    }
+    return uri.startsWith("/api/auth/");
+  }
+
   @Override
   protected void doFilterInternal(
       HttpServletRequest request,
@@ -43,17 +62,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       return;
     }
 
-    String email = jwtUtil.extractEmail(token);
-    UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+    try {
+      String email = jwtUtil.extractEmail(token);
+      UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-        userDetails,
-        null,
-        userDetails.getAuthorities()
-    );
-    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+      UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+          userDetails,
+          null,
+          userDetails.getAuthorities()
+      );
+      authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-    SecurityContextHolder.getContext().setAuthentication(authToken);
+      SecurityContextHolder.getContext().setAuthentication(authToken);
+    } catch (RuntimeException ex) {
+      // Bad/expired token edge cases or missing user: do not fail the whole request with a filter-level 500.
+      SecurityContextHolder.clearContext();
+    }
+
     filterChain.doFilter(request, response);
   }
 }
